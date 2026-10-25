@@ -9,13 +9,14 @@ import json
 import secrets
 import time
 from contextlib import closing
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from .main import CATEGORIES, PERSONAS, db, current_user, get_twin, stats_for, twin_of, vip_of
 from .twin import fmt_h
+from . import routine
 
 router = APIRouter(prefix="/api")
 
@@ -286,6 +287,12 @@ def planner(u=Depends(current_user)):
             kind = "routine"
         else:
             kind = "light"
+        wd = (datetime.now() + timedelta(hours=(f["hour"] - datetime.now().hour) % 24)).weekday()
+        blk = routine.block_at(t.profile, wd, f["hour"] + 0.5)
+        if blk:
+            plan.append(dict(hour=f["hour"], label=fmt_h(f["hour"]), kind="scheduled", score=round(score, 2),
+                             suggestion=f"{blk['label']} (your schedule) · pings held"))
+            continue
         plan.append(dict(hour=f["hour"], label=fmt_h(f["hour"]), kind=kind, score=round(score, 2),
                          suggestion={"deep": f"{p['tasks'][0]}: hardest part first", "routine": "Email, reviews, admin",
                                      "light": "Reading, planning, errands", "break": "Walk, water, no feeds", "rest": "Sleep. Your twin insists."}[kind]))

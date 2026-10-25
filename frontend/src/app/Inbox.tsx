@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { AnimatePresence, motion } from 'motion/react'
-import { Bell, Clock, Inbox as InboxIcon, Pause, Play, ShieldCheck } from 'lucide-react'
+import { Bell, Clock, Copy, Inbox as InboxIcon, MessageSquareReply, Pause, Play, ShieldCheck } from 'lucide-react'
 import { PageHead } from './AppShell'
 import { Panel } from '@/components/charts'
 import { api } from '@/lib/api'
@@ -24,6 +25,12 @@ export default function Inbox() {
   const q = useApi<Item[]>('/notifications/queue')
   const digest = useApi<Digest>('/digest')
   const [done, setDone] = useState<Record<string, string>>({})
+  const [reply, setReply] = useState<Record<string, string>>({})
+  const { i18n } = useTranslation()
+  async function draft(it: Item) {
+    const r = await api<{ text: string }>(`/autoreply?category=${it.category}&lang=${i18n.language}`)
+    setReply((x) => ({ ...x, [it.id]: r.text }))
+  }
 
   async function act(it: Item, choice: 'allow' | 'delay' | 'summarize') {
     const r = await api<{ xp_gained: number; stats: { xp: number } }>('/interventions', { body: { category: it.category, choice, predicted_cost: it.cost, saved: choice === 'allow' ? 0 : it.saved, text: it.text } })
@@ -67,12 +74,23 @@ export default function Inbox() {
                     </div>
                   </div>
                   {d ? (
-                    <p className="small font-medium text-right">{d === 'allow' ? 'Opened' : d === 'delay' ? 'Held for checkpoint' : 'In tonight’s digest'}</p>
+                    <div className="text-right flex flex-col items-end gap-2">
+                      <p className="small font-medium">{d === 'allow' ? 'Opened' : d === 'delay' ? 'Held for checkpoint' : 'In tonight’s digest'}</p>
+                      {d !== 'allow' && ['social_dm', 'work_chat', 'family'].includes(it.category) && !reply[it.id] && (
+                        <button onClick={() => draft(it)} className="small flex items-center gap-1.5 text-calm hover:underline"><MessageSquareReply size={14} /> Draft auto-reply</button>
+                      )}
+                    </div>
                   ) : (
                     <div className="flex sm:flex-col gap-1.5">
                       <button onClick={() => act(it, 'allow')} className="btn btn-ghost !py-1.5 !px-3 small"><Play size={14} /> Allow</button>
                       <button onClick={() => act(it, 'delay')} className="btn !py-1.5 !px-3 small"><Pause size={14} /> Hold</button>
                       <button onClick={() => act(it, 'summarize')} className="btn btn-calm !py-1.5 !px-3 small"><InboxIcon size={14} /> Digest</button>
+                    </div>
+                  )}
+                  {reply[it.id] && (
+                    <div className="sm:col-span-2 bg-bg p-3 flex items-start gap-3">
+                      <p className="flex-1 small">{reply[it.id]}</p>
+                      <button onClick={() => { navigator.clipboard?.writeText(reply[it.id]); toast('Copied. Parallel never sends messages for you.') }} className="small flex items-center gap-1 text-muted hover:text-ink"><Copy size={14} /> Copy</button>
                     </div>
                   )}
                 </motion.article>

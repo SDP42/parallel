@@ -92,3 +92,28 @@ def test_platform_features():
     assert client.get("/api/team/health", headers=h).json()["members"] >= 5
     assert client.get("/api/audit", headers=h).json()["chain_valid"]
     assert client.get("/api/companion", headers=h).json()["name"] == "Echo"
+
+
+def test_routine_schedule_and_inputs():
+    from datetime import date, timedelta
+    h = auth()
+    wd = date.today().weekday()
+    prof = {"wake": 6.5, "bed": 23, "chronotype": "morning",
+            "blocks": [{"day": wd, "start": 0, "end": 23.99, "kind": "class", "label": "Lectures"}],
+            "deadlines": [{"title": "DBMS exam", "due": (date.today() + timedelta(days=2)).isoformat(), "kind": "exam"}],
+            "tools": ["Notion"], "nags": ["Instagram"]}
+    assert client.put("/api/me/profile", json=prof, headers=h).json()["declared"]
+    r = client.post("/api/simulate", json={"category": "social_like"}, headers=h).json()
+    assert r["recommendation"] == "delay" and "Lectures" in r["why"] and "DBMS exam" in r["why"]
+    assert any("Guard your golden hours" in x["title"] for x in client.get("/api/recommendations", headers=h).json())
+    assert client.post("/api/checkins", json={"energy": 2}, headers=h).status_code == 200
+    for _ in range(3):
+        last = client.post("/api/feedback/matter", json={"category": "email", "mattered": True}, headers=h).json()
+    assert last["learned"] > last["generic"]
+    assert client.get("/api/twin/knowledge", headers=h).json()["score"] > 0
+    assert client.get("/api/check-moments", headers=h).json()["moments"]
+    ev = [{"timestamp": "2026-10-25T04:00:00Z", "duration": 1800, "data": {"app": "Notion"}}] * 2
+    r = client.post("/api/ingest/activitywatch?tz_offset_min=330", json=ev, headers=h).json()
+    assert r["stored_segments"] == 1
+    assert client.get("/api/twin/timemachine", headers=h).json()["extra_focus_hours"] >= 0
+    assert "text" in client.get("/api/autoreply?category=social_dm&lang=mr", headers=h).json()

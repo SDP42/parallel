@@ -95,3 +95,16 @@ Status against the 75-item backlog: ✅ built · 🟡 partial or simulated · �
 | 73 | SDK | ✅ |
 | 74 | Product-team analytics | 🗺️ |
 | 75 | Audit layer | ✅ (hash chain) |
+
+## v0.2 additions
+| Feature | Status | Where |
+|---|---|---|
+| 7-step onboarding (routine, schedule, deadlines, tool and nag apps) | ✅ | `pages/Onboarding.tsx`, `PUT /api/me/profile` |
+| Schedule-aware holds that name the block; deadline strictness | ✅ | `app/routine.py`, `twin.simulate` |
+| Routine-following focus curve, day-0 history and planner | ✅ | `routine.focus_for`, `synth.generate(profile=…)` |
+| Energy check-in, “did this matter?” learned importance | ✅ | `/api/checkins`, `/api/feedback/matter` |
+| Knowledge meter, best moments to check held pings | ✅ | `/api/twin/knowledge`, `/api/check-moments` |
+| Time machine, attention doppelgänger, auto-reply drafts | ✅ | `/api/twin/timemachine`, `/api/population/doppelganger`, `/api/autoreply` |
+| ActivityWatch ingest fix (dedup, `tz_offset_min`, live segments) | ✅ | `POST /api/ingest/activitywatch` |
+| PWA + Capacitor Android/iOS, phone tab bar with More sheet | ✅ | `frontend/android`, `frontend/ios`, `public/sw.js` |
+| Android NotificationListener plugin | 🗺️ | see `docs/MOBILE.md` |

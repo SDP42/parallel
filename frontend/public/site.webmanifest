@@ -1,2 +1,23 @@
-{ "name": "Parallel — Attention Digital Twin", "short_name": "Parallel", "start_url": "/app", "display": "standalone",
-  "background_color": "#18191b", "theme_color": "#18191b", "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }] }
+{
+  "name": "Parallel — Attention Digital Twin",
+  "short_name": "Parallel",
+  "description": "Your attention digital twin. See both futures of a notification before you tap.",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#18191b",
+  "theme_color": "#18191b",
+  "categories": ["productivity", "health"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ],
+  "shortcuts": [
+    { "name": "Multiverse", "url": "/app/multiverse" },
+    { "name": "Smart inbox", "url": "/app/inbox" },
+    { "name": "Twin coach", "url": "/app/coach" }
+  ]
+}

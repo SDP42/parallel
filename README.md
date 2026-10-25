@@ -1,160 +1,177 @@
-# Parallel — your attention digital twin
+<div align="center">
 
-> Every ping forks your day. Parallel shows you both futures before you tap.
+# Parallel
 
-Built for **CASCADE ’26 · Theme 3 · Problem 3: The Attention Digital Twin**.
+### Your attention digital twin
 
-The problem statement asks for a personal twin that learns when you focus best, what causes interruptions, which content causes prolonged sessions, which notifications actually matter, when you're fatigued and which apps fragment concentration. It must also simulate *“If I allow this notification right now, what is likely to happen?”*, including the counterfactual.
+**Every ping forks your day. Parallel shows you both futures before you tap.**
 
-Parallel does that with real, trained models, a database-backed history per user, and an interface built as a 3D story.
+Built for **CASCADE ’26 · Theme 3 · Problem 3: The Attention Digital Twin**
+
+[Run it](RUN.md) · [Architecture](docs/ARCHITECTURE.md) · [Data & ML](docs/DATA_AND_ML.md) · [Mobile app](docs/MOBILE.md) · [API](docs/API.md) · [Presenter guide](docs/PRESENTER_GUIDE.md) · [Project report (Word)](docs/Parallel_Project_Report.docx)
+
+![Parallel landing: the attention twin as a hologram head](docs/screenshots/landing-hero.jpg)
+
+</div>
 
 ---
 
-## The idea in one minute
+## The problem in one example
 
 You're coding. *“Someone liked your post.”*
 
-| Universe A — you allow it | Universe B — your twin holds it |
+| Universe A: you allow it | Universe B: your twin holds it |
 |---|---|
-| +2 min interruption → Instagram opened → +17 min browsing → +8 min to regain focus = **27 focus-minutes gone** | Silenced until your next checkpoint, read in a digest = **~0.7 min** |
+| +2 min interruption → Instagram opened → +17 min browsing → +8 min to regain focus = **27 focus-minutes gone** | Held until your next checkpoint, read in a digest = **~0.7 min** |
 
-The minutes come from your personal model (2,000 Monte Carlo rollouts, with a p10–p90 range and a confidence). The funny "Scrollfather vs Main Character" stories are a comedy layer on top. They are clearly fiction; the numbers are not.
+Everyone's attention is different. The same like can cost one person 2 minutes and another 40. Parallel learns *you*, predicts the downstream chain of every notification with a range and a confidence, compares it with the counterfactual, and checks itself against what really happened.
 
-**How it estimates what would have happened:** a small share (22%) of low-importance alerts were held back at random. Comparing those with alerts that went through gives an honest causal estimate with a confidence interval, not just a correlation. A T-learner trained on the same data matches those randomized estimates to within about 0.9 minutes.
+## What it does
 
----
-
-## What's inside
-
-### Core twin (the problem statement, point by point)
-| Requirement | How Parallel learns it | Where you see it |
+### The twin learns everything the problem statement asks for
+| The twin learns… | How | Where you see it |
 |---|---|---|
-| When the user focuses best | Focus quality by weekday × hour from sessions; best 2.5 h window | Fingerprint heatmap, 3D fingerprint ring |
-| What causes interruptions | Calibrated p(open \| context) model: task depth, fatigue, time, sender, recent switches | Multiverse "why" factors, Twin brain |
-| Content that causes prolonged sessions | p(rabbit hole \| opened) + dwell-time model per app/category | Fragmentation bars, Replay |
-| Which notifications matter | Importance + your rules + randomized uplift per category | Smart inbox, recommendations |
-| When the user is fatigued | Behavioural fatigue estimate (switching, block length, time on task). Not a diagnosis. | Today, planner, coach |
-| Apps that fragment concentration | Focus breaks/day × cost per break | Fingerprint, attention debt |
-| “If I allow this now?” + counterfactual | Allow vs hold vs digest futures, randomized holdouts, T-learner | **Multiverse** (hero feature) |
+| When you focus best | Focus quality by weekday × hour, shifted by your declared wake/bed time and chronotype | Fingerprint heatmap, 3D ring, golden hours |
+| What causes interruptions | Calibrated p(open \| context): task depth, fatigue, time, sender, recent switches | Multiverse “why” factors, Twin brain |
+| Which content causes prolonged sessions | p(rabbit hole) plus dwell-time models per app/category | Fragmentation bars, Replay |
+| Which notifications matter | Your “did this matter?” taps, rules and randomized uplift per category | Smart inbox, Today |
+| When you're fatigued | Behavioural estimate plus your 10-second energy check-ins | Today, planner, coach |
+| Which apps fragment you | Breaks per day × cost per break; your tool vs nag apps | Fingerprint, attention debt |
+| “If I allow this now?” + counterfactual | 2,000 Monte Carlo futures; randomized holdouts; T-learner | **Multiverse** (hero feature) |
 
-### Features that go beyond the brief
-- **Multiverse simulator.** What-if sliders, two comic universes, a 2,000-future histogram, a step-by-step chain, an explanation, then a *reality check* that grades the prediction.
-- **Smart inbox.** Live triage, a deferred queue and a digest; trusted senders always pass.
-- **Abstention.** When the twin is unsure it asks instead of deciding.
-- **Population + personal blend.** New users start from a population model trained on 60 users and gradually shift to their own data.
-- **Accuracy center.** Calibration, comparison against a generic rule, drift (PSI), data quality, and a tamper-evident audit chain.
-- **Data & models page.** The dataset, model registry, AUC against baselines, counterfactual validation, and where you rank among the 60 users.
-- **Twin brain.** A knowledge graph of tasks, times, triggers, apps and outcomes; click any node for the evidence behind it.
-- **Replay.** Scrub through any day minute by minute.
-- **Coach.** A voice and text assistant in **English, हिन्दी, मराठी and Español**. It is persona-aware and grounded in your numbers.
-- **Gamification without guilt.** XP for *intentional* choices and honest feedback; an anti-farming ledger; quests validated against real activity; streaks with forgiveness; a world that grows from your desk to an orbital station.
+### What are personas?
+A **persona is the twin's starting guess about you**. On day one it has no history, so it borrows the typical pattern of your kind of busy, then moves towards *you* as your own data arrives (its personal weight grows as n/(n+20)).
+
+| Persona | Starting focus peaks | Work tools | Most frequent pings | Fatigue usually from |
+|---|---|---|---|---|
+| Student | 10 AM and 9:30 PM | Notion, Docs, lectures | Social likes, DMs | 4 PM |
+| Developer | 11 AM and 11 PM | VS Code, Terminal, GitHub | Work chat, email, news | 4:30 PM |
+| Creator | 2 PM and 8 PM | Figma, Docs, Notion | Social likes (their feed is also their work) | 6 PM |
+| Professional | 9:30 AM and 3 PM | Excel, Docs, Notion | Work chat, email, meetings | 3 PM |
+
+Your declared routine (wake/bed, chronotype, schedule) shifts these immediately, and the four demo logins are one account per persona.
+
+### It knows your day
+- **7-step onboarding:**
+  - persona and goals
+  - wake/bed time and chronotype
+  - **weekly schedule editor** with templates
+  - **deadlines and exams**
+  - which apps are **tools** and which **nag** you
+  - who always gets through
+
+  The schedule and deadline steps can be skipped, and the same editor lives in Settings.
+- **Schedule-aware decisions.** During a class or work block, low-value pings are held and the reason names the block (“You're in Lectures until 1:00 PM…”). A close deadline makes the twin stricter and adds a “guard your golden hours” recommendation. The focus curve, day-0 history, planner and recommendations all follow your schedule.
+- **Ongoing inputs on Today:**
+  - a 10-second energy check-in
+  - “did this matter?” taps that replace the generic importance of each alert type
+  - a meter showing how well the twin knows you and what to add next
+  - the **best moments to check held pings**, based on when your blocks end
+
+### Features that go further
+- **Multiverse simulator:** what-if sliders, two comic universes over grounded numbers, a cost distribution, explanations, personal vs population vs blended predictions, and a reality check that grades every prediction.
+- **Smart inbox:** live triage, a deferred queue and digest, and **auto-reply drafts** (“I'm in Lectures until 1 PM…”) in four languages, never sent automatically.
+- **Time machine:** 30 simulated days, current habits vs following your twin.
+- **Attention doppelgänger:** your closest behavioural match among 60 people, and what worked for them.
+- **Abstention:** when the evidence is thin, the twin asks instead of deciding.
+- **Accuracy center + Data & models:**
+  - calibration and comparison with a generic rule
+  - drift (PSI), data quality and a model registry
+  - dataset preview
+  - hash-chained audit log
+- **Twin brain:** an explorable knowledge graph of tasks, times, triggers, apps and outcomes.
+- **Coach:** voice and text in **English, हिन्दी, मराठी, Español**. It is persona-aware and every number comes from the models.
 - **Lab:**
-  - attention budget and attention debt
+  - attention budget and debt
   - co-focus rooms
-  - 7-day habit experiments against your own baseline
-  - a developer **Attention API** with keys, quotas and a JS SDK
-  - team health with aggregates only and k-anonymity ≥ 5
-  - a platform capability matrix
+  - habit experiments
+  - developer **Attention API** + JS SDK
+  - team health (aggregates only, k ≥ 5)
+- **Gamification without guilt:** XP for intentional choices, anti-farming rules, quests validated against real activity, streaks with forgiveness.
 - **Privacy:**
-  - local-first by design
-  - message text never stored
-  - pause learning, retention window, export everything
-  - portable attention profile you can export and import
-  - one-click delete
+  - metadata only; message text and window titles are never stored
+  - pause learning and set a retention window
+  - export, portable profile, delete
 
-### The 3D landing page
-One persistent WebGL scene of about 15k GPU particles. As you scroll it morphs through the story: **a human head (your twin) → its brain → the 7×24 attention fingerprint ring → the notification fork → the knowledge graph → you and your twin face to face.** Other elements: a wall-break intro, pinned horizontal chapters, scroll-scrubbed counters, Lenis smooth scrolling, and a live fork you can play with on real model output.
+### Mobile-ready
+One React codebase ships as a website, an **installable PWA**, and native **Android and iOS** apps through Capacitor (`frontend/android`, `frontend/ios`). Phones get a tab bar with a More sheet, safe areas, haptics and local reminders. See **[docs/MOBILE.md](docs/MOBILE.md)**.
 
----
-
-## Architecture
-
-```
-            ┌───────────────────────── frontend (Vite · React 19 · TS · Tailwind v4) ─────────────────────────┐
-            │ 3D landing (react-three-fiber, custom GLSL, GSAP, Lenis)   App: Today · Multiverse · Inbox ·     │
-            │ i18n (en/hi/mr/es) · Web Speech voice coach · SEO + schema  Fingerprint · Replay · Brain · Lab · …│
-            └───────────────────────────────────────────────┬────────────────────────────────────────────────┘
-                                                            │ REST /api (JWT)
-            ┌───────────────────────────────────────────────┴────────────────────────────────────────────────┐
-            │ FastAPI backend                                                                                │
-            │  auth · rules · sessions · interventions/outcomes · digest · quests · rooms · developer API    │
-            │  Personal twin (per user): LogisticRegression ×2 · empirical-Bayes dwell · LinearRegression ·   │
-            │                             Monte Carlo rollouts · randomized-holdout counterfactual · KMeans   │
-            │  Population model (ml/):    HistGradientBoosting (+isotonic) · quantile GBMs · T-learner        │
-            │  Assistant: intent router + templates in 4 languages, numbers from the models only             │
-            └───────────────────────────────────────────────┬────────────────────────────────────────────────┘
-                                                            │
-            ┌───────────────────────────────────────────────┴────────────────────────────────────────────────┐
-            │ SQLite: users · user_notifications · user_segments · decisions · predictions · rules ·         │
-            │         deferred_queue · xp_ledger · quests · rooms · audit_log (hash-chained) · model_registry │
-            │         ds_users · ds_notifications (81k × 35) · ds_sessions (150k × 10)                        │
-            └─────────────────────────────────────────────────────────────────────────────────────────────────┘
-```
+## Screenshots
+| | |
+|---|---|
+| ![Today](docs/screenshots/app-today.jpg) | ![Multiverse](docs/screenshots/app-multiverse.jpg) |
+| **Today:** Echo the 3D companion, live state, inputs | **Multiverse:** one ping, two futures |
+| ![Inputs](docs/screenshots/app-today-inputs.jpg) | ![Time machine](docs/screenshots/app-timemachine.jpg) |
+| **Check-in, “did this matter?”, knowledge meter, check moments** | **Time machine and doppelgänger** |
+| ![Schedule](docs/screenshots/app-settings-routine.jpg) | ![Data & models](docs/screenshots/app-models.jpg) |
+| **Weekly schedule, deadlines, tool vs nag apps** | **Dataset, models vs baselines, registry** |
+| ![Fingerprint](docs/screenshots/app-fingerprint.jpg) | ![Phones](docs/screenshots/phones.jpg) |
+| **Attention fingerprint** | **Phone layout** |
 
 ## Data & ML (honest version)
-- `python -m ml.dataset` generates a **synthetic** behavioural dataset: 60 users × 30 days, **81,582 notification events × 35 columns** and **149,649 app sessions**. It stands in for consented logs from ActivityWatch (desktop) or Android's NotificationListenerService. CSVs go to `backend/data/`; tables go to SQLite.
-- `python -m ml.train` trains on that data, evaluates on **users never seen in training** (GroupShuffleSplit by user), saves versioned artifacts plus a `MODEL_CARD.md`, and registers the run in `model_registry`.
+- `python -m ml.dataset` creates a **synthetic** population: 60 users × 30 days, **81,582 notification events × 35 columns** and 149,649 app sessions. It is saved as CSVs and SQLite tables.
+- `python -m ml.train` trains population models on **users never seen in training**:
 
 | Target | Model | Unseen-user result | Baseline |
 |---|---|---|---|
-| p(open) | HistGradientBoosting + isotonic | **AUC 0.845**, Brier 0.152 | category rate AUC 0.728 |
-| p(rabbit hole \| open) | HistGradientBoosting + isotonic | **AUC 0.802** | — |
-| Focus cost (p10/p50/p90) | Quantile GBMs | MAE 5.5 min, **79 % interval coverage** | category median MAE 6.0 |
-| Counterfactual effect | T-learner | **0.9 min** mean gap vs randomized truth | — |
+| p(open) | Gradient boosting + isotonic | **AUC 0.845** | 0.728 |
+| p(rabbit hole) | Gradient boosting + isotonic | **AUC 0.802** | — |
+| Focus cost p10–p90 | Quantile GBMs | **79% coverage**, MAE 5.5 min | MAE 6.0 |
+| Counterfactual | T-learner | **0.9 min** gap vs randomized truth | — |
 
-- Every account stores its own history in `user_notifications` / `user_segments`. New accounts get a clearly labelled 14-day persona warm-up; real outcomes are appended as `source='live'` and the twin refits from the database.
+- Every account's history lives in SQLite (`user_segments`, `user_notifications`). Real events (`source='live'`) are appended, and the twin refits from the database.
+- Details: **[docs/DATA_AND_ML.md](docs/DATA_AND_ML.md)**.
 
-## Demo accounts
-| Email | Password |
-|---|---|
-| student@parallel.app | parallel123 |
-| developer@parallel.app | parallel123 |
-| creator@parallel.app | parallel123 |
-| professional@parallel.app | parallel123 |
-
-You can also use the one-click demo buttons on the sign-in page.
-
-## Run it
-See **[RUN.md](RUN.md)** for Mac, Linux and Windows. The short version:
-
+## Quick start
 ```bash
+git clone https://github.com/SDP42/parallel.git
+cd parallel
 ./run.sh
 ```
+On Windows, run `powershell -ExecutionPolicy Bypass -File .\run.ps1` instead of `./run.sh`. Then open **http://localhost:5180**.
 
-Then open http://localhost:5180.
+| Demo login | Password |
+|---|---|
+| student@parallel.app · developer@parallel.app · creator@parallel.app · professional@parallel.app | `parallel123` |
 
-## Project structure
+Each demo account comes with a persona-appropriate routine, schedule and upcoming deadline. Full instructions for Mac, Windows and phones are in **[RUN.md](RUN.md)**.
+
+## Architecture
+```
+React 19 (web · PWA · Capacitor Android/iOS) ──HTTPS/JWT──▶ FastAPI ──▶ SQLite
+   3D landing (R3F + GLSL) · 12 app screens       twin.py · routine.py · population.py     users · profiles · history
+   i18n (4 languages) · voice coach                routine_api · platform_api · assistant   predictions · audit chain
+                                                    ▲ versioned models (ml/train.py)         ds_* population dataset
+```
+Full diagram and request flow: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+
+## Repository map
 ```
 parallel/
-├─ README.md · RUN.md · run.sh · run.ps1
-├─ docs/            IDEATION.md · PRESENTER_GUIDE.md · FEATURES.md · API.md
-├─ sdk/             parallel-sdk.js (Attention API client)
+├─ README.md · RUN.md · CHANGELOG.md · CONTRIBUTING.md · run.sh · run.ps1
+├─ docs/
+│  ├─ ARCHITECTURE.md · DATA_AND_ML.md · MOBILE.md · API.md · FEATURES.md · ROADMAP.md
+│  ├─ IDEATION.md · PRESENTER_GUIDE.md · Parallel_Project_Report.docx
+│  └─ screenshots/
+├─ sdk/parallel-sdk.js                 Attention API client
 ├─ backend/
-│  ├─ app/          main.py (API) · twin.py (personal model) · synth.py (behaviour generator) · history.py
-│  │                population.py · assistant.py · platform_api.py · gamify.py · personas.py
-│  ├─ ml/           dataset.py · train.py
-│  ├─ models/       versioned model artifacts + MODEL_CARD.md
-│  ├─ data/         generated CSVs
-│  └─ tests/        test_api.py (end-to-end API tests)
+│  ├─ app/   main · twin · routine · routine_api · platform_api · population · history · synth · assistant · gamify
+│  ├─ ml/    dataset.py · train.py
+│  └─ tests/ test_api.py
 └─ frontend/
-   ├─ src/landing/  TwinWorld.tsx (WebGL world) · shapes.ts · scroll.ts
-   ├─ src/pages/    Landing · Auth · Onboarding · Privacy · Contact · NotFound
-   ├─ src/app/      Home · Simulator · Inbox · Fingerprint · Replay · Brain · Accuracy · Models · Lab · Coach · Settings
-   ├─ src/components/ charts · Universes · VoiceCoach · SiteChrome · React Bits (CountUp, Magnet, ClickSpark, …)
-   └─ public/       robots.txt · sitemap.xml · og-image.png/.webp · _redirects · site.webmanifest
+   ├─ src/landing/   TwinWorld (WebGL world) · shapes · scroll
+   ├─ src/pages/     Landing · Auth · Onboarding (7 steps) · Privacy · Contact · NotFound
+   ├─ src/app/       Today · Multiverse · Inbox · Fingerprint · Replay · Brain · Lab · Accuracy · Data & models · Coach · Settings
+   ├─ src/components RoutineEditor · Universes · VoiceCoach · charts · React Bits
+   ├─ android/ · ios/   Capacitor native projects
+   └─ public/        PWA manifest, service worker, icons, robots, sitemap, OG image
 ```
 
-## Launch checklist (SEO and site hygiene)
-- Unique title, description and canonical tag per route; Open Graph and Twitter images.
-- Organization + WebApplication JSON-LD; BreadcrumbList on inner pages.
-- One `<h1>` per page.
-- `robots.txt`, `sitemap.xml`, a custom 404, and 301 redirects (`public/_redirects`, `vercel.json`).
-- Alt text and ARIA labels, lazy-loaded routes and 3D, a WebP OG image.
-- Consent-gated Google Analytics (`VITE_GA_ID`) and a Search Console verification tag.
-- A privacy policy page and a working contact form that stores to the database.
-- Server-side rendering is not used: this is a Vite SPA. For SSR, port the public pages to Vite SSR or Next.js; the app pages don't need it.
+## Build on it
+Start with **[docs/ROADMAP.md](docs/ROADMAP.md)**, which says where to add endpoints, rules, models, pages, languages and native features, and **[CONTRIBUTING.md](CONTRIBUTING.md)**. The next big steps are the Android notification-listener plugin, an ActivityWatch bridge script and calendar import.
 
 ## Honest limits
-- The dataset is synthetic, so the models learn the generator's assumptions. The pipeline is ready for real consented logs (`POST /api/ingest/activitywatch`, `POST /api/events`).
-- iOS doesn't let apps read other apps' notifications. Android and desktop (via ActivityWatch) are the realistic first platforms; see `GET /api/platform/capabilities`.
+- **Day-0 history is still generated.** It follows your declared routine, but it is not behaviour you actually showed. The Settings page says so, and real data replaces it as it arrives.
+- **Accuracy numbers are on synthetic data.** The best demo upgrade is a few days of your own ActivityWatch data (`POST /api/ingest/activitywatch?tz_offset_min=330`; ActivityWatch times are UTC, and 330 is the offset for IST).
+- iOS doesn't let apps read other apps' notifications. Android and desktop are the realistic first platforms (`GET /api/platform/capabilities`).
 - Fatigue is a behavioural estimate, never a medical claim.

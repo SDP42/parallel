@@ -14,6 +14,7 @@ from dataclasses import dataclass, field, asdict
 from datetime import date, datetime, timedelta
 
 from .personas import CATEGORIES, PERSONAS, app_for, focus_curve
+from . import routine
 
 HISTORY_DAYS = 14
 EXPLORE_RATE = 0.22
@@ -120,7 +121,8 @@ def build_chain(n: Notif) -> list:
     return steps
 
 
-def generate(persona: str, seed: int, today: date | None = None, days: int = HISTORY_DAYS):
+def generate(persona: str, seed: int, today: date | None = None, days: int = HISTORY_DAYS, profile: dict | None = None):
+    """`profile` (wake/bed, chronotype, weekly blocks) makes the day follow the user's declared routine."""
     rng = random.Random(seed)
     p = PERSONAS[persona]
     today = today or date.today()
@@ -134,12 +136,25 @@ def generate(persona: str, seed: int, today: date | None = None, days: int = HIS
         dstr = day.isoformat()
         weekend = day.weekday() >= 5
         now_h = datetime.now().hour + datetime.now().minute / 60 if d == 0 else 24.0
-        t = 8.0 + rng.random() * 1.2 + (1.0 if weekend else 0)
-        end_h = min(23.8 + rng.random() * 0.5, now_h)
+        prof = routine.merge(profile) if profile else None
+        if prof and prof["bed"] > prof["wake"]:
+            t = prof["wake"] + 0.4 + rng.random() * 0.6 + (0.8 if weekend else 0)
+            end_h = min(prof["bed"] - 0.2 + rng.random() * 0.4, now_h)
+        else:
+            t = 8.0 + rng.random() * 1.2 + (1.0 if weekend else 0)
+            end_h = min(23.8 + rng.random() * 0.5, now_h)
         fatigue = 0.05 + rng.random() * 0.1
         while t < end_h:
             h = t
-            fc = focus_curve(persona, h)
+            fc = routine.focus_for(persona, h, prof) if prof else focus_curve(persona, h)
+            blk = routine.block_at(prof, day.weekday(), t) if prof else None
+            if blk and blk["kind"] in ("class", "lab", "exam", "meeting"):
+                # declared class/meeting: phone mostly away, attention spoken for
+                b_end = min(float(blk["end"]), end_h)
+                segments.append(Segment(dstr, t, b_end, "Calendar", "meeting", blk.get("label", "Class"), 0.5))
+                t = b_end + rng.uniform(0.02, 0.1)
+                fatigue = min(1, fatigue + 0.04 * (b_end - h))
+                continue
             # meeting blocks for professionals / developers on weekdays
             if not weekend and persona in ("professional", "developer") and rng.random() < (0.22 if persona == "professional" else 0.1) and 9.5 < h < 17:
                 length = rng.choice([0.5, 0.5, 1.0])
@@ -157,11 +172,15 @@ def generate(persona: str, seed: int, today: date | None = None, days: int = HIS
                 fatigue = max(0.0, fatigue - 0.12 * length * 2)
                 continue
             # focus block
-            task = rng.choice(p["tasks"])
+            task = blk.get("label", rng.choice(p["tasks"])) if blk else rng.choice(p["tasks"])
             work_app = rng.choice(p["work_apps"])
             depth = 1.0 if fc > 0.65 else (0.6 if fc > 0.4 else 0.3)
             block_len = rng.uniform(0.6, 1.8) * (0.6 + fc)
-            block_end = min(t + block_len, end_h)
+            block_end = min(t + block_len, end_h, float(blk["end"]) if blk else 99)
+            if prof and not blk:  # don't run a free block into the next declared class
+                nxt = [b["start"] for b in routine.blocks_on(prof, day.weekday()) if b["start"] > t]
+                if nxt:
+                    block_end = min(block_end, max(t + 0.1, min(nxt)))
             cur = t
             seg_start = t
             while cur < block_end:

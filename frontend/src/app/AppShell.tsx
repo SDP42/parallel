@@ -1,7 +1,8 @@
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { AnimatePresence, motion } from 'motion/react'
-import { Activity, Brain, Database, FlaskConical, Fingerprint, GitFork, Inbox, LayoutDashboard, LogOut, MessageCircle, PlayCircle, Settings, Target } from 'lucide-react'
+import { useState } from 'react'
+import { Activity, Brain, Grid2x2, X, Database, FlaskConical, Fingerprint, GitFork, Inbox, LayoutDashboard, LogOut, MessageCircle, PlayCircle, Settings, Target } from 'lucide-react'
 import { LangSwitch, Wordmark } from '@/components/Brand'
 import VoiceCoachFab from '@/components/VoiceCoach'
 import { useAuth } from '@/lib/auth'
@@ -45,6 +46,10 @@ export default function AppShell() {
   const nav = useNavigate()
   const loc = useLocation()
   const level = 1 + Math.floor((user?.xp ?? 0) / 100)
+  const [more, setMore] = useState(false)
+  const label = (k: string) => (k === 'lab' ? 'Lab' : k === 'models' ? 'Data & models' : t(`app.${k}`))
+  const byKey = (k: string) => NAV.find((n) => n.key === k)!
+  const TABS = ['home', 'simulator', 'inbox', 'coach'].map(byKey)
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[248px_1fr]">
       <aside className="hidden lg:flex flex-col sticky top-0 h-screen bg-surface px-4 py-6">
@@ -53,7 +58,7 @@ export default function AppShell() {
           {NAV.map((n) => (
             <NavLink key={n.to} to={n.to} end={n.end}
               className={({ isActive }) => `flex items-center gap-3 px-3 py-2.5 transition-colors ${isActive ? 'bg-bg text-ink font-medium border-l-2 border-chaos' : 'text-muted hover:text-ink border-l-2 border-transparent'}`}>
-              <n.icon size={18} aria-hidden /> {n.key === 'lab' ? 'Lab' : n.key === 'models' ? 'Data & models' : t(`app.${n.key}`)}
+              <n.icon size={18} aria-hidden /> {label(n.key)}
             </NavLink>
           ))}
         </nav>
@@ -71,11 +76,11 @@ export default function AppShell() {
       </aside>
 
       <div className="min-w-0">
-        <header className="lg:hidden sticky top-0 z-30 bg-bg/90 backdrop-blur flex items-center justify-between px-4 h-14">
+        <header className="lg:hidden sticky top-0 z-30 bg-bg/90 backdrop-blur flex items-center justify-between px-4 h-14" style={{ paddingTop: 'env(safe-area-inset-top)', boxSizing: 'content-box' }}>
           <Wordmark />
           <div className="flex items-center gap-3"><LangSwitch compact /><Link to="/app/settings" aria-label="Settings"><Settings size={20} /></Link></div>
         </header>
-        <main className="px-4 sm:px-8 py-6 sm:py-8 pb-28 lg:pb-10 max-w-[1500px]">
+        <main className="px-4 sm:px-8 py-6 sm:py-8 pb-32 lg:pb-10 max-w-[1500px]">
           <AnimatePresence mode="wait">
             <motion.div key={loc.pathname} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
               <Outlet />
@@ -84,13 +89,37 @@ export default function AppShell() {
         </main>
       </div>
 
-      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-surface grid grid-cols-5" aria-label="App">
-        {[NAV[0], NAV[1], NAV[2], NAV[3], NAV[8]].map((n) => (
-          <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `flex flex-col items-center gap-1 py-2.5 small ${isActive ? 'text-chaos' : 'text-muted'}`}>
-            <n.icon size={20} aria-hidden /> <span className="text-[11px]">{t(`app.${n.key}`)}</span>
+      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-surface/95 backdrop-blur grid grid-cols-5 border-t border-white/5" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} aria-label="App">
+        {TABS.map((n) => (
+          <NavLink key={n.to} to={n.to} end={n.end} onClick={() => setMore(false)} className={({ isActive }) => `flex flex-col items-center gap-1 py-2.5 small ${isActive ? 'text-chaos' : 'text-muted'}`}>
+            <n.icon size={20} aria-hidden /> <span className="text-[11px] truncate max-w-full px-1">{label(n.key)}</span>
           </NavLink>
         ))}
+        <button onClick={() => setMore(!more)} aria-expanded={more} className={`flex flex-col items-center gap-1 py-2.5 small ${more ? 'text-chaos' : 'text-muted'}`}>
+          {more ? <X size={20} aria-hidden /> : <Grid2x2 size={20} aria-hidden />} <span className="text-[11px]">More</span>
+        </button>
       </nav>
+      <AnimatePresence>
+        {more && (
+          <>
+            <motion.div className="lg:hidden fixed inset-0 z-30 bg-black/50" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMore(false)} />
+            <motion.div role="dialog" aria-label="More pages" className="lg:hidden fixed inset-x-0 bottom-0 z-[35] bg-surface rounded-t-2xl p-4 pb-24"
+              style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom))' }}
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', stiffness: 380, damping: 36 }}>
+              <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-surface-2" />
+              <div className="grid grid-cols-3 gap-2">
+                {NAV.filter((n) => !['home', 'simulator', 'inbox', 'coach'].includes(n.key)).map((n) => (
+                  <NavLink key={n.to} to={n.to} onClick={() => setMore(false)}
+                    className={({ isActive }) => `flex flex-col items-center gap-2 py-4 rounded-xl small text-center ${isActive ? 'bg-chaos text-field-ink' : 'bg-surface-2 text-ink'}`}>
+                    <n.icon size={22} aria-hidden /> {label(n.key)}
+                  </NavLink>
+                ))}
+              </div>
+              <button onClick={() => { signOut(); nav('/') }} className="mt-4 w-full small text-muted flex items-center justify-center gap-2 py-2"><LogOut size={15} /> {t('app.signout')}</button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
       <VoiceCoachFab />
       <Toasts />
       <span className="sr-only"><Activity /></span>

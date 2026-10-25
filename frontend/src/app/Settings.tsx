@@ -4,6 +4,7 @@ import { Download, Trash2, Upload } from 'lucide-react'
 import { PageHead } from './AppShell'
 import { Panel } from '@/components/charts'
 import { LangSwitch } from '@/components/Brand'
+import RoutineEditor, { EMPTY_PROFILE, type Profile } from '@/components/RoutineEditor'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { toast, useApi } from '@/lib/hooks'
@@ -28,6 +29,15 @@ export default function Settings() {
   const { signOut } = useAuth()
   const nav = useNavigate()
   const rules = useApi<Rule[]>('/rules')
+  const prof = useApi<{ declared: boolean; profile: Profile; note: string }>('/me/profile')
+  const [routine, setRoutine] = useState<Profile>(EMPTY_PROFILE)
+  const [savingRoutine, setSavingRoutine] = useState(false)
+  useEffect(() => { if (prof.data) setRoutine(prof.data.profile) }, [prof.data])
+  async function saveRoutine() {
+    setSavingRoutine(true)
+    try { await api('/me/profile', { method: 'PUT', body: routine }); toast('Routine saved. Your twin re-learned your day.') }
+    catch (e) { toast((e as Error).message, 'chaos') } finally { setSavingRoutine(false) }
+  }
   const prefs = useApi<Prefs>('/me/settings')
   const budget = useApi<{ daily_min: number }>('/budget')
   const [p, setP] = useState<Prefs | null>(null)
@@ -51,6 +61,11 @@ export default function Settings() {
   return (
     <>
       <PageHead title="Rules & privacy" crumbs="Settings" sub="Your rules always beat the model. Your data is yours to export, move or delete." />
+      <Panel className="mb-3" title="Your routine" sub={prof.data?.note ?? 'Wake and bed time, weekly schedule, deadlines and which apps are tools.'}
+        action={<button onClick={saveRoutine} disabled={savingRoutine} className="btn btn-calm !py-2">{savingRoutine ? 'Saving…' : 'Save routine'}</button>}>
+        <RoutineEditor value={routine} onChange={setRoutine} />
+        <p className="mt-6 small text-muted border-l-2 border-chaos pl-3">Honest note: until real activity arrives, your first days of history are generated from this routine. They follow your schedule but are not observed behaviour. Connect ActivityWatch (desktop) to replace them with real data.</p>
+      </Panel>
       <div className="grid gap-3 xl:grid-cols-12">
         <Panel className="xl:col-span-7" title="Notification rules" sub="“Always” bypasses holds and experiments. “Twin decides” uses your personal model, and asks when unsure.">
           <ul className="flex flex-col gap-1.5">

@@ -24,6 +24,7 @@ export default function Brain() {
   useSeo('Twin brain', 'The knowledge graph your twin built: tasks, times, triggers, apps and outcomes.', '/app/brain', { noindex: true })
   const g = useApi<{ nodes: Node[]; links: Link[] }>('/twin/graph')
   const wrap = useRef<HTMLDivElement>(null)
+  const fg = useRef<any>(null)
   const [w, setW] = useState(800)
   const [sel, setSel] = useState<Node | null>(null)
   const [hidden, setHidden] = useState<string[]>([])
@@ -68,6 +69,9 @@ export default function Brain() {
           <div ref={wrap} className="h-[560px]">
             {g.data && (
               <ForceGraph2D
+                ref={fg}
+                onEngineStop={() => fg.current?.zoomToFit(500, 50)}
+                d3VelocityDecay={0.25}
                 width={w} height={560} graphData={data} backgroundColor="rgba(0,0,0,0)"
                 nodeRelSize={4} cooldownTicks={120}
                 linkColor={(l: any) => (sel && (idOf(l.source) === sel.id || idOf(l.target) === sel.id) ? 'rgba(239,240,241,0.75)' : 'rgba(163,165,170,0.18)')}

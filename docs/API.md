@@ -33,6 +33,20 @@ Authentication is `Authorization: Bearer <token>`, from sign-in, sign-up or a de
 | GET | /experiments · /models · /data-quality | Randomized effects with confidence intervals; drift; data quality |
 | POST | /assistant | Multilingual coach (`{text, lang}`) |
 
+## Routine & ongoing inputs
+| Method | Path | Purpose |
+|---|---|---|
+| GET, PUT | /me/profile | Declared routine: wake/bed, chronotype, weekly `blocks`, `deadlines`, `tools`, `nags`. PUT regenerates the warm-up history |
+| GET | /routine/templates | Weekly schedule templates (college, office, remote dev, creator) |
+| POST, GET | /checkins | 10-second energy check-in (`{energy: 1..5}`); overrides the fatigue estimate for 3 h |
+| POST, GET | /feedback/matter | “Did this matter?” (`{category, mattered}`); returns generic vs learned importance |
+| GET | /twin/knowledge | How well the twin knows you (0–100) and what to add next |
+| GET | /check-moments | Best moments today to check held pings |
+| POST | /ingest/activitywatch?tz_offset_min=330 | Import ActivityWatch window events: deduplicated, titles dropped, stored as live segments |
+| GET | /twin/timemachine | 30 days of current habits vs following the twin |
+| GET | /population/doppelganger | Closest behavioural match among the population users, and what worked for them |
+| GET | /autoreply?category=social_dm&lang=hi | Drafted auto-reply naming your current block (never sent automatically) |
+
 ## ML & data
 | Method | Path | Purpose |
 |---|---|---|
@@ -40,7 +54,7 @@ Authentication is `Authorization: Bearer <token>`, from sign-in, sign-up or a de
 | GET | /ml/registry 🌐 | All registered model versions |
 | GET | /ml/dataset 🌐 | Dataset summary and sample rows |
 | GET | /population/compare | Your percentiles among the 60 dataset users |
-| POST | /events · /ingest/activitywatch | Ingest normalized or ActivityWatch events |
+| POST | /events | Ingest normalized events |
 | GET | /events | List your stored events |
 
 ## Rules, sessions, gamification

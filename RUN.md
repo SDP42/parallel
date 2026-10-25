@@ -116,6 +116,22 @@ You can also create your own account. It walks you through persona onboarding, a
 | `VITE_GA_ID` | frontend | Google Analytics 4 ID (loaded only after cookie consent) |
 | `VITE_SITE_URL` | frontend | Canonical site URL for SEO tags |
 
+## Real data
+To use your own behaviour instead of the generated warm-up, install [ActivityWatch](https://activitywatch.net) (free, local). Let it run for a day, then push its window events:
+
+```bash
+# export the last 24 h of window events from ActivityWatch's local API
+curl "http://localhost:5600/api/0/buckets/aw-watcher-window_$(hostname)/events?limit=5000" -o aw.json
+# send them to Parallel (ActivityWatch times are UTC: 330 = IST offset in minutes)
+curl -X POST "http://127.0.0.1:8787/api/ingest/activitywatch?tz_offset_min=330" \
+  -H "Authorization: Bearer <your token from localStorage 'parallel.token'>" \
+  -H "Content-Type: application/json" --data @aw.json
+```
+Mark your tool and nag apps in **Rules & privacy → Your routine** so observed time is classified correctly.
+
+## Mobile app
+See [docs/MOBILE.md](docs/MOBILE.md). In short, run `cd frontend && npm run android` (Android Studio) or `npm run ios` (Xcode, macOS only). Set `VITE_API_URL` to your computer's LAN IP first.
+
 ## Troubleshooting
 | Problem | Fix |
 |---|---|

@@ -24,3 +24,11 @@ backend/models/pop-*/
 skills-lock.json
 frontend/.claude/
 backend/.pytest_cache/
+
+# native build outputs (projects themselves are committed)
+frontend/android/app/build/
+frontend/android/.gradle/
+frontend/android/local.properties
+frontend/ios/App/build/
+frontend/ios/App/Pods/
+frontend/ios/DerivedData/

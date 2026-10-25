@@ -132,3 +132,58 @@ h1, h2, h3 { font-weight: 600; letter-spacing: -0.04em; line-height: 0.98; margi
   .mask .mask-line > span { transform: none; }
   .vskew, .vskew-x { transform: none; }
 }
+
+/* Grids without explicit columns get one shrinkable column, so wide content can't push past the phone width.
+   In the base layer, so any grid-cols-* utility still wins. */
+@layer base {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ================================================================ landing: brain-first opening */
+/* letters spread and lean with scroll speed (--vel ≈ -1..1, --avel = |--vel|) */
+.vel-word { display: inline-block; white-space: nowrap; }
+.vel-ch { display: inline-block; transform: translate3d(calc(var(--o, 0) * var(--avel, 0) * .05em), 0, 0) skewX(calc(var(--vel, 0) * -9deg)); }
+
+/* loader → scroll cue */
+.intro-status .intro-load, .intro-status .intro-cue { transition: opacity .7s cubic-bezier(.2,.8,.2,1), transform .7s cubic-bezier(.2,.8,.2,1); }
+.intro-status .intro-cue { opacity: 0; transform: translate3d(0, 10px, 0); pointer-events: none; }
+.intro-status[data-ready="1"] .intro-load { opacity: 0; transform: translate3d(0, -10px, 0); }
+.intro-status[data-ready="1"] .intro-cue { opacity: 1; transform: none; pointer-events: auto; }
+.cue-line { position: relative; display: block; width: 1px; height: 40px; background: rgba(239, 240, 241, .16); overflow: hidden; }
+.cue-line::after { content: ""; position: absolute; inset: 0; background: var(--color-calm); transform: translateY(-100%); animation: cue-drop 1.9s cubic-bezier(.65, 0, .25, 1) infinite; }
+@keyframes cue-drop { 0% { transform: translateY(-100%); } 60%, 100% { transform: translateY(100%); } }
+
+/* the whiteout as the camera passes through the brain */
+.intro-flash { background: radial-gradient(circle at 50% 50%, #eff0f1 0%, rgba(239, 240, 241, .92) 24%, rgba(62, 230, 181, .7) 62%, rgba(62, 230, 181, .35) 100%); mix-blend-mode: screen; }
+.intro-flash[data-reduced="1"] { background: #111214; mix-blend-mode: normal; }
+
+/* hero: throw a ping at the twin */
+.ping-btn { display: inline-flex; align-items: center; gap: .5rem; padding: .4rem .75rem; color: var(--color-ink); background: rgba(239, 240, 241, .06); border: 1px solid rgba(239, 240, 241, .14); cursor: pointer; clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%); transition: background .2s, border-color .2s; }
+.ping-btn:hover { background: rgba(255, 74, 31, .14); border-color: rgba(255, 74, 31, .5); }
+.ping-btn-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--color-chaos); box-shadow: 0 0 0 0 rgba(255, 74, 31, .6); animation: ping-dot 1.8s ease-out infinite; }
+@keyframes ping-dot { 0% { box-shadow: 0 0 0 0 rgba(255, 74, 31, .55); } 70%, 100% { box-shadow: 0 0 0 9px rgba(255, 74, 31, 0); } }
+
+/* elastic cursor follower (fine pointers only; not rendered with reduced motion) */
+.cursor { position: fixed; left: 0; top: 0; z-index: 80; width: 0; height: 0; pointer-events: none; transition: opacity .3s; }
+.cursor-ring { position: absolute; left: -17px; top: -17px; width: 34px; height: 34px; transition: transform .45s cubic-bezier(.2, .8, .2, 1), opacity .25s; }
+.cursor-ring-in { width: 100%; height: 100%; border-radius: 50%; border: 1.5px solid rgba(239, 240, 241, .6); transition: border-color .3s; }
+.cursor.is-down .cursor-ring { transform: scale(.7); }
+.cursor[data-mode="focus"] .cursor-ring { transform: scale(1.9); }
+.cursor[data-mode="focus"] .cursor-ring-in { border-color: rgba(62, 230, 181, .85); border-style: dashed; }
+.cursor[data-mode="fork"] .cursor-ring { transform: scale(.2); opacity: 0; }
+.cursor-fork { position: absolute; left: 10px; top: -40px; width: 34px; height: 34px; overflow: visible; opacity: 0; transform: scale(.4) rotate(-40deg); transform-origin: 0 100%; transition: opacity .2s, transform .45s cubic-bezier(.3, 1.5, .5, 1); }
+.cursor-fork path { fill: none; stroke-width: 3.2; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset .4s cubic-bezier(.2, .8, .2, 1); }
+.cursor-fork path:nth-child(2), .cursor-fork path:nth-child(3) { transition-delay: .08s; }
+.cursor[data-mode="fork"] .cursor-fork { opacity: 1; transform: none; }
+.cursor[data-mode="fork"] .cursor-fork path { stroke-dashoffset: 0; }
+
+/* HUD that follows the cursor over the twin's head */
+.twin-hud { position: fixed; left: 0; top: 0; z-index: 45; pointer-events: none; padding: .55rem .75rem; font-size: var(--step-small); line-height: 1.35; color: var(--color-ink); background: rgba(17, 18, 20, .9); border-left: 2px solid var(--color-calm); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.twin-hud b { font-weight: 600; color: var(--color-calm); }
+.twin-hud-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-calm); animation: ping-dot-calm 1.4s ease-out infinite; }
+@keyframes ping-dot-calm { 0% { box-shadow: 0 0 0 0 rgba(62, 230, 181, .6); } 70%, 100% { box-shadow: 0 0 0 7px rgba(62, 230, 181, 0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .vel-ch { transform: none; }
+  .cue-line::after, .ping-btn-dot, .twin-hud-dot { animation: none; }
+}

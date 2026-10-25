@@ -34,18 +34,37 @@ def ensure_schema(c: sqlite3.Connection):
     c.executescript(SCHEMA)
 
 
-def ensure_history(c: sqlite3.Connection, user_id: int, persona: str, seed: int) -> int:
-    """Create the warm-up history for an account that has none. Returns the number of events stored."""
+def ensure_history(c: sqlite3.Connection, user_id: int, persona: str, seed: int, profile: dict | None = None) -> int:
+    """Create the warm-up history for an account that has none. Returns the number of events stored.
+    The warm-up follows the user's declared routine when there is one; it is generated, not observed."""
     have = c.execute("SELECT COUNT(*) FROM user_notifications WHERE user_id=?", (user_id,)).fetchone()[0]
+    live_segs = c.execute("SELECT COUNT(*) FROM user_segments WHERE user_id=? AND source='live'", (user_id,)).fetchone()[0]
     if have:
-        return have
-    segs, notes = generate(persona, seed)
+        return have + live_segs
+    segs, notes = generate(persona, seed, profile=profile)
     c.executemany("INSERT INTO user_segments(user_id,day,start,end,app,kind,task,quality,source) VALUES(?,?,?,?,?,?,?,?,'warmup')",
                   [(user_id, s["day"], s["start"], s["end"], s["app"], s["kind"], s["task"], s["quality"]) for s in segs])
     c.executemany(f"INSERT INTO user_notifications(user_id,{','.join(N_COLS)},source) VALUES(?,{','.join('?' * len(N_COLS))},'warmup')",
                   [(user_id, *[json.dumps(n["chain"]) if k == "chain" else n[k] for k in N_COLS]) for n in notes])
     c.commit()
     return len(notes)
+
+
+def regenerate_warmup(c: sqlite3.Connection, user_id: int, persona: str, seed: int, profile: dict | None):
+    """Replace the generated warm-up with one that follows the newly declared routine. Live rows are kept."""
+    c.execute("DELETE FROM user_segments WHERE user_id=? AND source='warmup'", (user_id,))
+    c.execute("DELETE FROM user_notifications WHERE user_id=? AND source='warmup'", (user_id,))
+    c.commit()
+    live = c.execute("SELECT COUNT(*) FROM user_notifications WHERE user_id=?", (user_id,)).fetchone()[0]
+    if live:  # keep live notifications; add warm-up alongside
+        segs, notes = generate(persona, seed, profile=profile)
+        c.executemany("INSERT INTO user_segments(user_id,day,start,end,app,kind,task,quality,source) VALUES(?,?,?,?,?,?,?,?,'warmup')",
+                      [(user_id, s["day"], s["start"], s["end"], s["app"], s["kind"], s["task"], s["quality"]) for s in segs])
+        c.executemany(f"INSERT INTO user_notifications(user_id,{','.join(N_COLS)},source) VALUES(?,{','.join('?' * len(N_COLS))},'warmup')",
+                      [(user_id, *[json.dumps(n["chain"]) if k == "chain" else n[k] for k in N_COLS]) for n in notes])
+        c.commit()
+        return
+    ensure_history(c, user_id, persona, seed, profile)
 
 
 def load_history(c: sqlite3.Connection, user_id: int):
@@ -66,5 +85,6 @@ def counts(c: sqlite3.Connection, user_id: int) -> dict:
     out = {}
     for src in ("warmup", "live"):
         out[src] = c.execute("SELECT COUNT(*) FROM user_notifications WHERE user_id=? AND source=?", (user_id, src)).fetchone()[0]
+    out["live_segments"] = c.execute("SELECT COUNT(*) FROM user_segments WHERE user_id=? AND source='live'", (user_id,)).fetchone()[0]
     out["segments"] = c.execute("SELECT COUNT(*) FROM user_segments WHERE user_id=?", (user_id,)).fetchone()[0]
     return out

@@ -22,6 +22,7 @@ from sklearn.linear_model import LinearRegression, LogisticRegression
 
 from .personas import CATEGORIES, CATEGORY_KEYS, PERSONAS, app_for, focus_curve
 from .synth import build_chain, generate, logit, sigmoid
+from . import routine
 
 PRIOR_STRENGTH = 8  # pseudo-observations for shrinkage
 
@@ -37,6 +38,9 @@ class Twin:
         self.persona = persona
         self.seed = seed
         self.segments, self.notifs = history if history else generate(persona, seed)
+        self.profile: dict | None = None          # declared routine (set per request by the API)
+        self.learned_importance: dict = {}        # from "did this matter?" taps
+        self.energy: int | None = None            # latest 1-5 energy check-in (last 3 h)
         self.today = date.today().isoformat()
         self.days = sorted({s["day"] for s in self.segments})
         self._fit()
@@ -90,13 +94,19 @@ class Twin:
     def context_now(self, hour: float | None = None):
         now = datetime.now()
         hour = hour if hour is not None else now.hour + now.minute / 60
-        fc = focus_curve(self.persona, hour)
+        fc = routine.focus_for(self.persona, hour, self.profile)
         p = PERSONAS[self.persona]
+        blk = routine.block_at(self.profile, datetime.now().weekday(), hour)
         today_notifs = [n for n in self.notifs if n["day"] == self.today]
         fatigue = today_notifs[-1]["fatigue"] if today_notifs else min(0.9, max(0.1, (hour - 8) * 0.045 + (0.15 if hour > p["fatigue_onset"] else 0)))
+        if self.energy is not None:  # a fresh check-in beats the behavioural estimate
+            fatigue = round(0.4 * fatigue + 0.6 * (1 - (self.energy - 1) / 4), 2)
         depth = 1.0 if fc > 0.65 else (0.6 if fc > 0.4 else 0.3)
+        if blk and blk["kind"] in ("class", "lab", "exam", "study", "work"):
+            depth = 1.0
         return dict(hour=round(hour, 2), focus_capacity=round(fc, 2), fatigue=round(fatigue, 2), depth=depth,
-                    task=p["tasks"][0], minutes_in=35)
+                    task=blk["label"] if blk else p["tasks"][0], minutes_in=35,
+                    block=dict(label=blk["label"], kind=blk["kind"], until=routine.fmt(blk["end"])) if blk else None)
 
     def simulate(self, category: str, hour: float, depth: float, minutes_in: float, fatigue: float,
                  task: str, n_rollouts: int = 2000, rng_seed: int = 7):
@@ -128,16 +138,27 @@ class Twin:
             cost_p90=round(float(np.percentile(cost, 90)), 1),
             histogram=np.histogram(np.clip(cost, 0, 60), bins=20, range=(0, 60))[0].tolist(),
         )
-        importance = CATEGORIES[category]["importance"]
+        importance = self.learned_importance.get(category, CATEGORIES[category]["importance"])
+        app = app_for(category, self.persona)
+        nag = routine.classify_app(self.profile, app) == "nag"
+        if nag:
+            importance *= 0.6
         dc = self.delay_cost[category]
         delay_cost = dc["mean"] + (importance * 4 if importance > 0.5 else 0)
         delay = dict(cost_expected=round(delay_cost, 1), n_holdouts=dc["n"],
                      missed_risk=round(importance, 2))
         saved = allow["cost_expected"] - delay_cost
+        blk = routine.block_at(self.profile, datetime.now().weekday(), hour) if self.profile else None
+        dl = routine.deadline_pressure(self.profile) if self.profile else None
+        strict = bool(dl and dl["days_left"] <= 3)
+        threshold = 1.5 if strict else 3.0
+        tail = f" {dl['title']} is in {dl['days_left']} day{'s' if dl['days_left'] != 1 else ''}, so I'm being stricter." if strict else ""
         if importance >= 0.75:
             rec, why = "allow", "This looks genuinely important to you. Holding it back costs more than it saves."
-        elif saved > 3:
-            rec, why = "delay", f"Holding it until your next checkpoint saves about {round(saved)} focus-minutes on average."
+        elif blk and blk["kind"] in routine.HOLD_KINDS and importance < 0.5:
+            rec, why = "delay", f"You're in {blk['label']} until {routine.fmt(blk['end'])}. Low-value pings wait until it ends.{tail}"
+        elif saved > threshold:
+            rec, why = "delay", f"Holding it until your next checkpoint saves about {max(1, round(saved))} focus-minutes on average.{tail}"
         elif saved > 1:
             rec, why = "summarize", "Small expected cost. Bundle it into your next digest."
         else:
@@ -170,7 +191,9 @@ class Twin:
         chain_allow = build_chain(type("N", (), mock))
         chain_delay = build_chain(type("N", (), dict(action="delay", task=task, cost_min=delay_cost)))
 
-        abstain = confidence < 0.5 and rec != "allow"
+        if nag and rec != "allow":
+            why += f" You marked {app} as an app that nags you."
+        abstain = confidence < 0.5 and rec != "allow" and not blk
         if abstain:
             rec, why = "ask", "I haven't seen enough moments like this to decide for you. Your call; I'll learn from it."
         from .gamify import universe_names
@@ -459,6 +482,16 @@ class Twin:
                              impact_min=round(per_day, 1), evidence=f"{c['n_holdouts']} randomized holdouts", confidence=round(min(0.95, 0.4 + c['n_holdouts'] / 50), 2)))
         fp = self.fingerprint()
         b = fp["best_window"]
+        dl = routine.deadline_pressure(self.profile) if self.profile else None
+        if dl:
+            recs.append(dict(id="deadline:guard", type="schedule", title=f"Guard your golden hours: {dl['title']} in {dl['days_left']} days",
+                             detail=f"Hold every low-value ping from {fmt_h(b['start'])} to {fmt_h(b['end'])} until {dl['due']}. Your twin is already stricter.",
+                             impact_min=round(40 + 10 * (14 - dl['days_left']) / 2, 1), evidence="your declared deadline + golden hours", confidence=0.8))
+        clash = [x for x in routine.blocks_on(self.profile, datetime.now().weekday()) if x["start"] < b["end"] and x["end"] > b["start"]] if self.profile else []
+        if clash:
+            recs.append(dict(id="schedule:clash", type="schedule", title=f"Your golden hours overlap {clash[0]['label']}",
+                             detail="Use the first free stretch after it for your hardest task, and keep admin for the low-focus hours.",
+                             impact_min=12.0, evidence="declared schedule vs. focus curve", confidence=0.6))
         recs.append(dict(id="schedule:golden", type="schedule", title=f"Block {fmt_h(b['start'])}-{fmt_h(b['end'])} for your hardest task",
                          detail="Your focus quality peaks here. Move meetings and admin elsewhere.",
                          impact_min=round(b["quality"] * 30, 1), evidence=f"{fp['days_learned']} days of sessions", confidence=0.8))

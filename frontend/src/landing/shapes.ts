@@ -143,12 +143,13 @@ function rotY(p: V3, a: number): V3 {
 // ---------------------------------------------------------------- build all
 export const PALETTE = ['#eff0f1', '#3ee6b5', '#ff4a1f', '#4a4d53', '#f5a524', '#1aa37e']
 
-export function buildShapes(count: number) {
+export function buildShapes(count: number, onProgress?: (p: number) => void) {
   const P0 = new Float32Array(count * 3), P1 = new Float32Array(count * 3), P2 = new Float32Array(count * 3)
   const P4 = new Float32Array(count * 3), P5 = new Float32Array(count * 3)
   const seed = new Float32Array(count * 4)
   const colA = new Float32Array(count * 4), colB = new Float32Array(count * 2)
   for (let i = 0; i < count; i++) {
+    if (onProgress && (i & 1023) === 0) onProgress(i / count)
     const r = R()
     // 0 · head shell with a glowing brain inside
     const inner = r < 0.22

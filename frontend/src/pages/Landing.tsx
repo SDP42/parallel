@@ -1,16 +1,19 @@
-import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import gsap from 'gsap'
 import { ArrowDown, ArrowRight, Bell, Brain, Clock, Flame, Layers, Plus, RefreshCcw, Smartphone, Zap } from 'lucide-react'
 import { SiteFooter, SiteNav } from '@/components/SiteChrome'
-import { ForkMark } from '@/components/Brand'
 import Universes from '@/components/Universes'
 import CountUp from '@/components/CountUp'
 import Magnet from '@/components/Magnet'
 import { api, CATEGORIES, fmtHour, type Sim } from '@/lib/api'
 import { useSeo } from '@/lib/seo'
 import { seg, smooth, story, useInView, useScrub, useSmoothScroll, useStoryDriver } from '@/landing/scroll'
+import Intro, { IntroFlash } from '@/landing/Intro'
+import CursorLayer from '@/landing/CursorLayer'
+import VelText from '@/landing/VelText'
+import { getPersona } from '@/landing/persona'
 
 const TwinWorld = lazy(() => import('@/landing/TwinWorld'))
 
@@ -22,66 +25,9 @@ const phoneGlass = 'bg-[#111214]/70 backdrop-blur-md p-4 -mx-4 md:bg-transparent
 const leftCol = 'md:max-w-[44vw] xl:max-w-[40vw]'
 const H2 = { fontSize: 'clamp(2.3rem, 4.4vw, 4.6rem)' }
 
-/* ------------------------------------------------------------ opening: wall break */
-function WallBreak() {
-  const [phase, setPhase] = useState<'count' | 'break' | 'done'>(() => {
-    try { return sessionStorage.getItem('parallel.intro') ? 'done' : 'count' } catch { return 'done' }
-  })
-  const [n, setN] = useState(0)
-  useEffect(() => {
-    if (phase !== 'count') return
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const start = performance.now()
-    let raf = 0
-    const tick = (now: number) => {
-      const v = Math.min(100, Math.round(((now - start) / (reduce ? 300 : 1700)) * 100))
-      setN(v)
-      if (v >= 100) { setPhase('break'); return }
-      raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    const skip = () => setPhase('break')
-    window.addEventListener('keydown', skip, { once: true })
-    window.addEventListener('wheel', skip, { once: true })
-    return () => { cancelAnimationFrame(raf); window.removeEventListener('keydown', skip); window.removeEventListener('wheel', skip) }
-  }, [phase])
-  useEffect(() => {
-    if (phase === 'break') {
-      try { sessionStorage.setItem('parallel.intro', '1') } catch { /* ignore */ }
-      const t = setTimeout(() => setPhase('done'), 1300)
-      return () => clearTimeout(t)
-    }
-  }, [phase])
-  if (phase === 'done') return null
-  const panels = [
-    { cls: 'bg-chaos', to: { x: '-70vw', y: '-30vh', rotate: -18 } },
-    { cls: 'bg-[#1b1c1f]', to: { x: '0vw', y: '110vh', rotate: 6 } },
-    { cls: 'bg-calm', to: { x: '70vw', y: '-40vh', rotate: 16 } },
-  ]
-  return (
-    <div className="fixed inset-0 z-[70] grid grid-cols-3 cursor-pointer" onClick={() => setPhase('break')} aria-label="Intro, click to skip" role="presentation">
-      {panels.map((p, i) => (
-        <motion.div key={i} className={`${p.cls} relative overflow-hidden`} initial={false}
-          animate={phase === 'break' ? { ...p.to, opacity: 0.0 } : { x: 0, y: 0, rotate: 0, opacity: 1 }}
-          transition={{ duration: 1.1, ease, delay: i * 0.06 }} style={{ clipPath: i === 0 ? 'polygon(0 0, 100% 0, 88% 100%, 0 100%)' : i === 2 ? 'polygon(12% 0, 100% 0, 100% 100%, 0 100%)' : undefined }}>
-          {i === 1 && (
-            <div className="absolute inset-0 grid place-items-center">
-              <div className="text-center">
-                <ForkMark size={72} className="mx-auto text-ink" />
-                <p className="mt-6 font-semibold tabular-nums text-ink" style={{ fontSize: 'clamp(3.5rem, 9vw, 8rem)', lineHeight: 1 }}>{n}</p>
-                <p className="mt-2 small text-muted">assembling your twin</p>
-              </div>
-            </div>
-          )}
-        </motion.div>
-      ))}
-      <span className="absolute bottom-6 left-1/2 -translate-x-1/2 small text-field-ink/70 sm:text-muted">click or scroll to skip</span>
-    </div>
-  )
-}
-
 /* ------------------------------------------------------------ chapter rail + HUD */
 const CHAPTERS = [
+  { id: 'intro', label: 'Intro' },
   { id: 'twin', label: 'Twin' },
   { id: 'different', label: 'Inside' },
   { id: 'learns', label: 'Learns' },
@@ -92,7 +38,7 @@ const CHAPTERS = [
   { id: 'meet', label: 'Meet' },
 ]
 function ChapterRail() {
-  const [active, setActive] = useState('twin')
+  const [active, setActive] = useState('intro')
   const bar = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const io = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && setActive(e.target.id)), { rootMargin: '-45% 0px -50% 0px' })
@@ -148,26 +94,51 @@ function Mask({ lines, as = 'h2', id, className = '', style, delay = 0 }: { line
 }
 
 /* ------------------------------------------------------------ 0 · hero */
-function Hero({ delay }: { delay: number }) {
+/** Queue a ping for the 3D scene: a card flies from this screen point (NDC) into the twin's head. */
+function sendPing(x: number, y: number) { if (story.pings.length < 6) story.pings.push({ x, y }) }
+
+function Hero() {
+  const [absorbed, setAbsorbed] = useState(story.absorbed)
+  const count = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const on = (e: Event) => {
+      setAbsorbed((e as CustomEvent<number>).detail)
+      if (!story.reduced) count.current?.animate([{ transform: 'scale(1.6)', color: '#3ee6b5' }, { transform: 'scale(1)' }], { duration: 500, easing: 'cubic-bezier(.2,.8,.2,1)' })
+    }
+    window.addEventListener('twin:absorb', on)
+    return () => window.removeEventListener('twin:absorb', on)
+  }, [])
+  // click or tap anywhere on the hero (but not on a control) throws a ping at the twin
+  const onClick = (e: MouseEvent<HTMLElement>) => {
+    if ((e.target as Element).closest('a, button, input, label, select')) return
+    sendPing((e.clientX / window.innerWidth) * 2 - 1, -((e.clientY / window.innerHeight) * 2 - 1))
+  }
+  const view = { once: true, margin: '-8% 0px' } as const
   return (
-    <section id="twin" data-shape="0" data-hold="0.9" className="relative h-[100svh]" aria-labelledby="hero-title">
-      <div className="mx-auto max-w-[1500px] h-full px-4 sm:px-10 flex flex-col justify-end md:justify-center pb-24 md:pb-0">
+    <section id="twin" data-shape="0" data-hold="0.9" className="relative h-[100svh]" aria-labelledby="hero-title" onClick={onClick}>
+      <div className="mx-auto max-w-[1500px] h-full px-4 sm:px-10 flex flex-col justify-end md:justify-center pb-20 md:pb-0">
         <div className={`${leftCol} ${phoneGlass}`}>
-          <motion.p className="small text-muted flex items-center gap-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: delay + 0.1 }}>
+          <motion.p className="small text-muted flex items-center gap-2" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={view} transition={{ delay: 0.1 }}>
             <span className="inline-block w-2 h-2 rounded-full bg-calm animate-pulse" /> Attention digital twin
           </motion.p>
-          <Mask as="h1" id="hero-title" delay={delay} className="mt-4 tracking-[-0.05em] leading-[0.92] vskew" style={{ fontSize: 'clamp(3rem, 5.6vw, 6.6rem)' }}
-            lines={['Your attention', <span className="text-calm">has a twin.</span>]} />
-          <motion.p className="lead mt-6 max-w-[26ch] text-muted" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, ease, delay: delay + 0.45 }}>
+          <Mask as="h1" id="hero-title" delay={0.1} className="mt-4 tracking-[-0.05em] leading-[0.92] vskew" style={{ fontSize: 'clamp(3rem, 5.6vw, 6.6rem)' }}
+            lines={[<VelText text="Your attention" anchor="start" />, <span className="text-calm"><VelText text="has a twin." anchor="start" /></span>]} />
+          <motion.p className="lead mt-6 max-w-[26ch] text-muted" initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={view} transition={{ duration: 1, ease, delay: 0.35 }}>
             It sees both futures of a notification, before you tap.
           </motion.p>
-          <motion.div className="mt-8 flex flex-wrap gap-3" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, ease, delay: delay + 0.6 }}>
+          <motion.div className="mt-8 flex flex-wrap gap-3" initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={view} transition={{ duration: 0.9, ease, delay: 0.5 }}>
             <Magnet padding={50} magnetStrength={3.5}><Link to="/signup" className="btn">Meet your twin <ArrowRight size={18} /></Link></Magnet>
             <a href="#live" className="btn btn-ghost">Try a live fork</a>
           </motion.div>
+          <motion.p className="mt-5 small text-muted flex flex-wrap items-center gap-x-3 gap-y-1" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={view} transition={{ duration: 0.8, delay: 0.75 }}>
+            <button type="button" className="ping-btn" onClick={() => sendPing(window.innerWidth < 768 ? -0.4 + Math.random() * 0.8 : -0.05 + Math.random() * 0.25, -0.55 + Math.random() * 0.35)}>
+              <span className="ping-btn-dot" aria-hidden /> Send your twin a ping
+            </button>
+            <span aria-live="polite">or tap it · pings absorbed: <b ref={count} className="inline-block tabular-nums text-ink">{absorbed}</b></span>
+          </motion.p>
         </div>
       </div>
-      <motion.a href="#different" className="absolute bottom-7 left-1/2 -translate-x-1/2 hidden md:flex flex-col items-center gap-2 small text-muted" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: delay + 1 }}>
+      <motion.a href="#different" className="absolute bottom-7 left-1/2 -translate-x-1/2 hidden md:flex flex-col items-center gap-2 small text-muted" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={view} transition={{ delay: 0.9 }}>
         Scroll
         <motion.span animate={{ y: [0, 8, 0] }} transition={{ repeat: Infinity, duration: 1.6 }}><ArrowDown size={18} /></motion.span>
       </motion.a>
@@ -280,7 +251,7 @@ function Learns() {
 type Snap = { best_window: { start: number; end: number }; fatigue_onset: number; notifications_per_day: number; breaker: { app: string; avg_cost_min: number } | null }
 function FingerprintChapter() {
   const [snap, setSnap] = useState<Snap | null>(null)
-  useEffect(() => { api<Snap>('/demo/persona/developer').then(setSnap).catch(() => setSnap(null)) }, [])
+  useEffect(() => { getPersona().then(setSnap).catch(() => setSnap(null)) }, [])
   const h = (x: number) => fmtHour(x).replace(':00', '')
   return (
     <section id="fingerprint" data-shape="2" data-hold="0.6" className="relative h-[200vh]" aria-labelledby="fp-title">
@@ -583,17 +554,18 @@ export default function Landing() {
   useSeo('Parallel · Your attention digital twin', 'Parallel is a digital twin of your attention. It predicts what happens if you allow a notification right now, shows both futures, and learns from what really happens.', '/')
   useSmoothScroll()
   useStoryDriver()
-  const [introDelay] = useState(() => { try { return sessionStorage.getItem('parallel.intro') ? 0.25 : 1.9 } catch { return 0.25 } })
   return (
     <>
-      <WallBreak />
       <div className="fixed inset-0 z-0">
         <Suspense fallback={<div className="w-full h-full bg-[#111214]" />}><TwinWorld /></Suspense>
       </div>
+      <IntroFlash />
       <SiteNav />
       <ChapterRail />
+      <CursorLayer />
       <main className="relative z-10 overflow-x-clip">
-        <Hero delay={introDelay} />
+        <Intro />
+        <Hero />
         <Different />
         <Learns />
         <FingerprintChapter />

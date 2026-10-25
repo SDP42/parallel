@@ -10,6 +10,7 @@ import { api, fmtHour } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { toast, useApi } from '@/lib/hooks'
 import { useSeo } from '@/lib/seo'
+import { CheckMoments, DidItMatter, Doppelganger, EnergyCheckin, KnowledgeMeter, TimeMachine } from './TwinInputs'
 
 const TwinMini = lazy(() => import('@/landing/TwinMini'))
 
@@ -26,7 +27,7 @@ type Budget = { daily_min: number; spent_min: number; remaining_min: number; pro
 type Plan = { plan: { hour: number; label: string; kind: string; suggestion: string }[] }
 
 const greet = () => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening' }
-const PLAN_STYLE: Record<string, string> = { deep: 'bg-calm text-field-ink', routine: 'bg-surface-2', light: 'bg-surface', break: 'bg-chaos text-field-ink', rest: 'bg-bg text-muted' }
+const PLAN_STYLE: Record<string, string> = { scheduled: 'bg-ink text-field-ink', deep: 'bg-calm text-field-ink', routine: 'bg-surface-2', light: 'bg-surface', break: 'bg-chaos text-field-ink', rest: 'bg-bg text-muted' }
 
 export default function Home() {
   useSeo('Today', 'Your attention today: state, budget, plan and what your twin recommends.', '/app', { noindex: true })
@@ -39,6 +40,7 @@ export default function Home() {
   const budget = useApi<Budget>('/budget')
   const plan = useApi<Plan>('/planner')
   const focus = useApi<{ reserved: boolean; intent?: string; minutes_left?: number }>('/focus/status')
+  const knows = useApi<{ score: number; next: string; data_source: string; parts: { key: string; label: string; got: boolean }[] }>('/twin/knowledge')
   const session = useApi<{ task: string; next_step: string; started: number } | null>('/sessions/current')
   const [task, setTask] = useState('')
   const [step, setStep] = useState('')
@@ -107,6 +109,14 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Ongoing inputs: the twin keeps learning you */}
+      <div className="mt-3 grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
+        <EnergyCheckin onDone={() => { ov.reload(); knows.reload() }} />
+        <DidItMatter />
+        <KnowledgeMeter k={knows.data} />
+        <CheckMoments />
+      </div>
+
       {/* Budget, reservation, checkpoint */}
       <div className="mt-3 grid gap-3 lg:grid-cols-3">
         <Panel title="Attention budget" sub="Interruption minutes you choose to spend today. Not a screen-time limit.">
@@ -143,6 +153,12 @@ export default function Home() {
             </form>
           )}
         </Panel>
+      </div>
+
+      {/* Two futures, one doppelgänger */}
+      <div className="mt-3 grid gap-3 lg:grid-cols-12">
+        <div className="lg:col-span-7"><TimeMachine /></div>
+        <div className="lg:col-span-5"><Doppelganger /></div>
       </div>
 
       {/* Day plan + curve */}

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from './api'
+import { haptic } from './native'
 
 export function useApi<T>(path: string | null, deps: unknown[] = []) {
   const [data, setData] = useState<T | null>(null)
@@ -21,6 +22,7 @@ let toasts: Toast[] = []
 
 export function toast(text: string, tone: Toast['tone'] = 'calm') {
   const t = { id: Date.now() + Math.random(), text, tone }
+  haptic(tone === 'chaos' ? 'warning' : 'success')
   toasts = [...toasts, t]
   listeners.forEach((l) => l(toasts))
   setTimeout(() => {

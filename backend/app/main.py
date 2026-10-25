@@ -83,6 +83,11 @@ with closing(db()) as c:
         ts REAL, role TEXT, lang TEXT, text TEXT, intent TEXT);
     CREATE TABLE IF NOT EXISTS model_registry (version TEXT PRIMARY KEY, created TEXT, path TEXT, status TEXT,
         rows_train INTEGER, rows_test INTEGER, auc_open REAL, brier_open REAL, mae_cost REAL, metrics TEXT);
+    CREATE TABLE IF NOT EXISTS user_profile (user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, data TEXT, updated REAL);
+    CREATE TABLE IF NOT EXISTS checkins (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        ts REAL, energy INTEGER, mood TEXT);
+    CREATE TABLE IF NOT EXISTS matter_feedback (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        ts REAL, category TEXT, mattered INTEGER);
     CREATE TABLE IF NOT EXISTS contact_messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL, name TEXT, email TEXT, message TEXT);
     """)
@@ -125,10 +130,34 @@ def twin_of(u: dict):
         raise HTTPException(409, "Choose a persona first")
     seed = u["id"] * 7919
     with closing(db()) as c:
-        n = hist.ensure_history(c, u["id"], u["persona"], seed)
+        profile = load_profile(c, u["id"])
+        n = hist.ensure_history(c, u["id"], u["persona"], seed, profile)
         key = (u["persona"], seed, date.today().isoformat(), n)
         h = None if key in _twin_cache else hist.load_history(c, u["id"])
-    return get_twin(u["persona"], seed, h, version=n)
+        learned = learned_importance(c, u["id"])
+        energy = latest_energy(c, u["id"])
+    t = get_twin(u["persona"], seed, h, version=n)
+    t.profile, t.learned_importance, t.energy = profile, learned, energy
+    return t
+
+
+def load_profile(c, uid: int) -> dict | None:
+    r = c.execute("SELECT data FROM user_profile WHERE user_id=?", (uid,)).fetchone()
+    return json.loads(r[0]) if r else None
+
+
+def learned_importance(c, uid: int) -> dict:
+    """Bayesian update of each alert type's importance from the user's "did this matter?" taps."""
+    out = {}
+    for r in c.execute("SELECT category, SUM(mattered) yes, COUNT(*) n FROM matter_feedback WHERE user_id=? GROUP BY category", (uid,)):
+        prior = CATEGORIES[r[0]]["importance"] if r[0] in CATEGORIES else 0.3
+        out[r[0]] = round((prior * 6 + r[1]) / (6 + r[2]), 3)
+    return out
+
+
+def latest_energy(c, uid: int) -> int | None:
+    r = c.execute("SELECT energy FROM checkins WHERE user_id=? AND ts>? ORDER BY ts DESC LIMIT 1", (uid, time.time() - 3 * 3600)).fetchone()
+    return r[0] if r else None
 
 
 # ----------------------------------------------------------------- auth
@@ -172,6 +201,26 @@ DEMO_GOALS = {"student": ["Ace my exams", "Less doomscrolling"], "developer": ["
               "creator": ["Create first, post later", "Protect my evenings"], "professional": ["Fewer context switches", "Better breaks"]}
 
 
+def demo_routine(persona: str) -> dict:
+    """A believable declared routine for each demo persona, so routine-aware features show up immediately."""
+    from datetime import timedelta
+    from .routine import TEMPLATES
+    tpl = {"student": "college", "developer": "remote_dev", "creator": "creator", "professional": "office"}[persona]
+    soon = (date.today() + timedelta(days=3)).isoformat()
+    return dict(
+        wake={"student": 6.5, "developer": 8.5, "creator": 9.0, "professional": 7.0}[persona],
+        bed={"student": 23.5, "developer": 24.0, "creator": 24.0, "professional": 23.0}[persona],
+        chronotype={"student": "morning", "developer": "evening", "creator": "evening", "professional": "morning"}[persona],
+        blocks=TEMPLATES[tpl]["blocks"],
+        deadlines=[dict(title={"student": "DBMS mid-sem", "developer": "Sprint demo", "creator": "Brand video delivery",
+                               "professional": "Quarterly review"}[persona], due=soon, kind="exam" if persona == "student" else "deadline")],
+        tools={"student": ["Notion", "Docs"], "developer": ["VS Code", "Terminal", "GitHub"], "creator": ["Figma", "Docs"],
+               "professional": ["Excel", "Docs"]}[persona],
+        nags={"student": ["Instagram", "YouTube"], "developer": ["X", "YouTube"], "creator": ["Instagram", "Reddit"],
+              "professional": ["LinkedIn", "Amazon"]}[persona],
+    )
+
+
 def seed_demo_accounts():
     """Four demo accounts with a known password, so judges can sign in through the real form."""
     with closing(db()) as c, c:
@@ -180,9 +229,11 @@ def seed_demo_accounts():
             if c.execute("SELECT 1 FROM users WHERE email=?", (email,)).fetchone():
                 continue
             salt = secrets.token_hex(8)
-            c.execute("INSERT INTO users(email,name,pw,salt,persona,goals,vip,created) VALUES(?,?,?,?,?,?,?,?)",
-                      (email, f"Demo {p['label']}", hash_pw(DEMO_PASSWORD, salt), salt, persona,
-                       json.dumps(DEMO_GOALS[persona]), json.dumps(["family", "security", "calendar"]), time.time()))
+            cur = c.execute("INSERT INTO users(email,name,pw,salt,persona,goals,vip,created) VALUES(?,?,?,?,?,?,?,?)",
+                            (email, f"Demo {p['label']}", hash_pw(DEMO_PASSWORD, salt), salt, persona,
+                             json.dumps(DEMO_GOALS[persona]), json.dumps(["family", "security", "calendar"]), time.time()))
+            c.execute("INSERT OR REPLACE INTO user_profile(user_id,data,updated) VALUES(?,?,?)",
+                      (cur.lastrowid, json.dumps(demo_routine(persona)), time.time()))
 
 
 seed_demo_accounts()
@@ -488,28 +539,12 @@ def assistant(body: Ask, u=Depends(current_user)):
     return res
 
 
-# ------------------------------------------------- data ingest (ActivityWatch format)
-class AWEvent(BaseModel):
-    timestamp: str
-    duration: float
-    data: dict
-
-
-@app.post("/api/ingest/activitywatch")
-def ingest(events: list[AWEvent], u=Depends(current_user)):
-    """Accepts events exported from ActivityWatch's aw-watcher-window bucket. Titles are dropped (privacy)."""
-    with closing(db()) as c, c:
-        c.executemany("INSERT INTO events(user_id,source,ts,duration,app,title) VALUES(?,?,?,?,?,?)",
-                      [(u["id"], "activitywatch", e.timestamp, e.duration, str(e.data.get("app", "")), None) for e in events])
-    return dict(ingested=len(events))
-
-
 # ------------------------------------------------- privacy
 @app.get("/api/me/export")
 def export(u=Depends(current_user)):
     out = dict(user=public(u))
     with closing(db()) as c:
-        for tbl in ("decisions", "rules", "focus_sessions", "events", "chat_messages", "predictions", "deferred_queue", "xp_ledger", "quests"):
+        for tbl in ("decisions", "rules", "focus_sessions", "events", "chat_messages", "checkins", "matter_feedback", "user_profile", "predictions", "deferred_queue", "xp_ledger", "quests"):
             out[tbl] = [dict(r) for r in c.execute(f"SELECT * FROM {tbl} WHERE user_id=?", (u["id"],))]
     return out
 
@@ -927,5 +962,7 @@ def health():
 
 # Platform features (budget, debt, reservations, developer API, audit, rooms, planner, habits, team, companion)
 from .platform_api import audit, router as platform_router  # noqa: E402
+from .routine_api import router as routine_router  # noqa: E402
 
 app.include_router(platform_router)
+app.include_router(routine_router)

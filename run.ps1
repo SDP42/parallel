@@ -8,7 +8,8 @@ if (-not (Test-Path ".venv")) {
   py -3 -m venv .venv
 }
 & ".\.venv\Scripts\python.exe" -m pip install -q -r requirements.txt
-if (-not (Test-Path "models\LATEST")) {
+$latest = if (Test-Path "models\LATEST") { (Get-Content "models\LATEST").Trim() } else { "" }
+if (-not $latest -or -not (Test-Path "models\$latest")) {
   Write-Host "-> Generating the synthetic dataset and training models (~1 min)"
   & ".\.venv\Scripts\python.exe" -m ml.dataset --users 60 --days 30
   & ".\.venv\Scripts\python.exe" -m ml.train

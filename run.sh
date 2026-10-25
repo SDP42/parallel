@@ -10,7 +10,7 @@ if [ ! -d .venv ]; then
 fi
 source .venv/bin/activate
 pip install -q -r requirements.txt
-if [ ! -f models/LATEST ]; then
+if [ ! -f models/LATEST ] || [ ! -d "models/$(cat models/LATEST 2>/dev/null)" ]; then
   echo "→ Generating the synthetic dataset (60 users × 30 days) and training models (~1 min)"
   python -m ml.dataset --users 60 --days 30
   python -m ml.train

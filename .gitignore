@@ -12,6 +12,7 @@ frontend/dist/
 backend/parallel.db
 backend/data/*.csv
 backend/models/pop-*/
+backend/models/LATEST
 
 # env
 .env

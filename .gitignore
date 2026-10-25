@@ -1,0 +1,26 @@
+# dependencies
+frontend/node_modules/
+backend/.venv/
+.venv/
+__pycache__/
+*.pyc
+
+# build output
+frontend/dist/
+
+# local data (regenerate with: python -m ml.dataset && python -m ml.train)
+backend/parallel.db
+backend/data/*.csv
+backend/models/pop-*/
+
+# env
+.env
+.env.local
+.DS_Store
+
+# local AI tooling (not part of the app)
+.claude/
+.agents/
+skills-lock.json
+frontend/.claude/
+backend/.pytest_cache/

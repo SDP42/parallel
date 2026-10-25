@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#18191b" />
+    <title>Parallel · Your attention digital twin</title>
+    <meta name="description" content="Parallel is a digital twin of your attention. It predicts what happens if you allow a notification right now, shows both futures, and learns from what really happens." />
+    <link rel="canonical" href="https://parallel-twin.app/" />
+
+    <!-- Open Graph / Twitter -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Parallel" />
+    <meta property="og:title" content="Parallel · Your attention digital twin" />
+    <meta property="og:description" content="Every ping forks your day. See both futures before you tap." />
+    <meta property="og:url" content="https://parallel-twin.app/" />
+    <meta property="og:image" content="https://parallel-twin.app/og-image.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:alt" content="Every ping forks your day. Parallel, your attention digital twin." />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://parallel-twin.app/og-image.png" />
+
+    <!-- Google Search Console: replace the content value with your verification token -->
+    <meta name="google-site-verification" content="REPLACE_WITH_SEARCH_CONSOLE_TOKEN" />
+
+    <link rel="preconnect" href="https://api.fontshare.com" />
+    <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin />
+    <link href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600&display=swap" rel="stylesheet" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600&display=swap" rel="stylesheet" />
+
+    <!-- Organization + WebApplication structured data -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://parallel-twin.app/#org",
+            "name": "Parallel",
+            "url": "https://parallel-twin.app/",
+            "logo": "https://parallel-twin.app/favicon.svg",
+            "contactPoint": { "@type": "ContactPoint", "contactType": "customer support", "url": "https://parallel-twin.app/contact" }
+          },
+          {
+            "@type": "WebApplication",
+            "name": "Parallel — Attention Digital Twin",
+            "applicationCategory": "ProductivityApplication",
+            "operatingSystem": "Web",
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "INR" },
+            "publisher": { "@id": "https://parallel-twin.app/#org" }
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>Parallel needs JavaScript to run your attention twin.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

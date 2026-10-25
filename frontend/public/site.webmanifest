@@ -1,0 +1,2 @@
+{ "name": "Parallel — Attention Digital Twin", "short_name": "Parallel", "start_url": "/app", "display": "standalone",
+  "background_color": "#18191b", "theme_color": "#18191b", "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }] }

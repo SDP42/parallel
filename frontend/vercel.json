@@ -1,0 +1,9 @@
+{
+  "redirects": [
+    { "source": "/login", "destination": "/signin", "permanent": true },
+    { "source": "/register", "destination": "/signup", "permanent": true },
+    { "source": "/dashboard", "destination": "/app", "permanent": true },
+    { "source": "/home", "destination": "/", "permanent": true }
+  ],
+  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
+}

@@ -1,0 +1,7 @@
+# Netlify: permanent (301) redirects for legacy paths, then SPA fallback
+/login       /signin   301
+/register    /signup   301
+/dashboard   /app      301
+/home        /         301
+/api/*       https://YOUR-BACKEND-HOST/api/:splat  200
+/*           /index.html  200

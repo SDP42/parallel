@@ -122,15 +122,16 @@ def answer(twin: Twin, text: str, lang: str, persona: str, stats: dict, vip: set
     if intent == "simulate":
         cat = cat or "social_like"
         ctx = twin.context_now()
-        r = twin.simulate(cat, ctx["hour"], ctx["depth"], 35, ctx["fatigue"], ctx["task"], 1200)
+        r = twin.simulate(cat, ctx["hour"], ctx["depth"], 35, ctx["fatigue"], ctx["task"], 600)
         rec = "allow" if cat in vip else r["recommendation"]
         msg = L["sim"].format(label=r["label"].lower(), p=round(r["allow"]["p_open"] * 100), cost=r["allow"]["cost_p50"],
                               lo=r["allow"]["cost_p10"], hi=r["allow"]["cost_p90"], d=r["delay"]["cost_expected"],
                               rec=L["rec_words"][rec], why=r["why"] if lang == "en" else "")
         card = dict(type="simulate", category=cat)
     elif intent == "best_time":
-        b = twin.fingerprint()["best_window"]
-        msg = L["best"].format(s=fmt_h(b["start"]), e=fmt_h(b["end"]), q=round(b["quality"] / max(max(twin.fingerprint()["hourly"]), 0.01) * 100), persona=pline)
+        fp = twin.fingerprint()
+        b = fp["best_window"]
+        msg = L["best"].format(s=fmt_h(b["start"]), e=fmt_h(b["end"]), q=round(b["quality"] / max(max(fp["hourly"]), 0.01) * 100), persona=pline)
         card = dict(type="fingerprint")
     elif intent == "distraction":
         a = next((a for a in twin.apps() if a["focus_breaks_per_day"] > 0), None)

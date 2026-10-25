@@ -7,7 +7,7 @@ export function setToken(t: string | null) {
   try { t ? localStorage.setItem('parallel.token', t) : localStorage.removeItem('parallel.token') } catch { /* private mode */ }
 }
 
-export async function api<T = any>(path: string, opts: { method?: string; body?: unknown } = {}): Promise<T> {
+export async function api<T = any>(path: string, opts: { method?: string; body?: unknown; signal?: AbortSignal } = {}): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   const tok = getToken()
   if (tok) headers.Authorization = `Bearer ${tok}`
@@ -15,6 +15,7 @@ export async function api<T = any>(path: string, opts: { method?: string; body?:
     method: opts.method ?? (opts.body ? 'POST' : 'GET'),
     headers,
     body: opts.body ? JSON.stringify(opts.body) : undefined,
+    signal: opts.signal,
   })
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))

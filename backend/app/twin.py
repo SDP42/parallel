@@ -27,6 +27,21 @@ from . import routine
 PRIOR_STRENGTH = 8  # pseudo-observations for shrinkage
 
 
+def memo(fn):
+    """Cache a result on the twin instance. Safe because new data creates a new Twin."""
+    name = fn.__name__
+
+    def wrapper(self, *a, **k):
+        cache = self.__dict__.setdefault("_memo", {})
+        key = (name, a, tuple(sorted(k.items())))
+        if key not in cache:
+            cache[key] = fn(self, *a, **k)
+        return cache[key]
+    wrapper.__name__ = name
+    wrapper.__doc__ = fn.__doc__
+    return wrapper
+
+
 def featurize(category, hour, depth, minutes_in, fatigue):
     onehot = [1.0 if category == k else 0.0 for k in CATEGORY_KEYS]
     return [math.sin(2 * math.pi * hour / 24), math.cos(2 * math.pi * hour / 24), depth,
@@ -208,6 +223,7 @@ class Twin:
         )
 
     # ------------------------------------------------------------ insights
+    @memo
     def fingerprint(self):
         grid = np.zeros((7, 24))
         wts = np.zeros((7, 24))
@@ -268,6 +284,7 @@ class Twin:
             events_learned=len(self.notifs) + len(self.segments),
         )
 
+    @memo
     def apps(self):
         stats = defaultdict(lambda: dict(minutes=0.0, entries=0, rabbit=0, resume=[], during_focus=0))
         for s in self.segments:
@@ -291,6 +308,7 @@ class Twin:
                             fragmentation=round(float(min(frag, 10)), 2)))
         return sorted(out, key=lambda a: -a["fragmentation"])
 
+    @memo
     def categories(self):
         out = []
         for k in CATEGORY_KEYS:
@@ -308,6 +326,7 @@ class Twin:
                             importance=CATEGORIES[k]["importance"]))
         return sorted(out, key=lambda c: -(c["uplift"] or 0))
 
+    @memo
     def graph(self):
         nodes, edges = {}, Counter()
 
@@ -354,6 +373,7 @@ class Twin:
         ns = [n for n in self.notifs if n["day"] == day]
         return dict(day=day, days=self.days, segments=segs, notifications=ns)
 
+    @memo
     def accuracy(self):
         """Backtest: train on all but last 3 days, predict them. Compare to a generic prior."""
         full_train = self.train
@@ -417,6 +437,7 @@ class Twin:
 
 
     # ------------------------------------------------- unsupervised + recsys
+    @memo
     def archetypes(self, k: int = 3):
         """Cluster past days into 'day archetypes' with KMeans on daily behaviour features."""
         from sklearn.cluster import KMeans
@@ -508,6 +529,7 @@ class Twin:
 
 
     # ------------------------------------------------- experiments, drift, data quality
+    @memo
     def experiments(self, n_boot: int = 400):
         """Randomized holdouts as a micro-randomized trial: ATE of 'allow' vs 'delay' with a bootstrap 95% CI."""
         rng = np.random.default_rng(0)
@@ -525,6 +547,7 @@ class Twin:
         return dict(policy="Low-importance alerts were held back at random 22% of the time (exploration).",
                     method="Difference in mean focus cost, bootstrap 95% CI", arms=sorted(out, key=lambda e: -e["ate_min"]))
 
+    @memo
     def drift(self):
         """Population Stability Index between the last 3 days and the earlier history, per feature."""
         cut = self.days[-4]
@@ -546,6 +569,7 @@ class Twin:
         return dict(model_version=self.model_version, trained_at=self.trained_at, train_events=self.n_train,
                     features=rows, action="none" if worst < 0.25 else "retrain on recent window")
 
+    @memo
     def data_quality(self):
         """Gaps, overlaps, duplicates and impossible values in the behavioural log."""
         issues = []
